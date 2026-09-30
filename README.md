@@ -2,6 +2,8 @@
 
 A small, local control panel for switching USB-C port power with [uhubctl](https://github.com/mvp/uhubctl). It includes a command-line tool and a browser interface.
 
+![USB Power local control panel showing two USB-C ports and charging cycle controls](assets/control-panel.png)
+
 ![macOS](https://img.shields.io/badge/macOS-local%20only-08795c)
 
 ## Requirements
