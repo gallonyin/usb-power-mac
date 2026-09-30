@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Fixed daily cycle: six hours charging, then eighteen hours disconnected.
+on_seconds=$((6 * 60 * 60))
+cycle_seconds=$((24 * 60 * 60))
+state_dir="$HOME/Library/Application Support/usb-power"
+agent_dir="$HOME/Library/LaunchAgents"
+hub_file="$state_dir/hub"
+hub=$(cat "$hub_file" 2>/dev/null || printf '2-1')
+
+usage() {
+  cat <<'EOF'
+Usage: usb-power {on|off|status} [1|2]
+       usb-power cycle {on|off|status} [1|2]
+       usb-power hub [HUB]
+       usb-power web
+
+Port defaults to 1. Cycle: charge 6 hours, power off 18 hours, repeat.
+Cycle starts with charging and resumes after login/restart.
+Stopping a cycle leaves the port on to protect the phone from discharge.
+
+Examples:
+  usb-power on 1
+  usb-power off 2
+  usb-power status 2
+  usb-power cycle on 2
+  usb-power cycle status 2
+  usb-power cycle off 2
+  usb-power hub 2-1
+  usb-power web
+EOF
+}
+
+bad_usage() { usage >&2; exit 2; }
+
+if [[ $# -eq 0 || ${1:-} == -h || ${1:-} == --help ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $1 == web && $# -eq 1 ]]; then
+  source_path=$(readlink "$0" || printf '%s' "$0")
+  source_dir=$(cd "$(dirname "$source_path")" && pwd)
+  exec python3 "$source_dir/web.py" --open
+fi
+
+if [[ $1 == hub ]]; then
+  [[ $# -le 2 ]] || bad_usage
+  if [[ $# -eq 1 ]]; then
+    echo "Hub: $hub"
+    exit 0
+  fi
+  [[ $2 =~ ^[0-9]+(-[0-9]+)+$ ]] || bad_usage
+  mkdir -p "$state_dir"
+  printf '%s\n' "$2" > "$hub_file"
+  echo "Hub: $2"
+  exit 0
+fi
+
+if [[ $1 == cycle ]]; then
+  [[ $# -ge 2 && $# -le 3 ]] || bad_usage
+  action=$2
+  port=${3:-1}
+  cycle_mode=1
+else
+  [[ $# -le 2 ]] || bad_usage
+  action=$1
+  port=${2:-1}
+  cycle_mode=0
+fi
+[[ $port == 1 || $port == 2 ]] || bad_usage
+[[ $action == on || $action == off || $action == status || $action == __tick ]] || bad_usage
+[[ $action != __tick || $cycle_mode == 1 ]] || bad_usage
+
+if command -v uhubctl >/dev/null 2>&1; then
+  uhubctl_bin=$(command -v uhubctl)
+elif [[ -x /opt/homebrew/bin/uhubctl ]]; then
+  uhubctl_bin=/opt/homebrew/bin/uhubctl
+else
+  echo 'uhubctl is not installed or is not in PATH' >&2
+  exit 1
+fi
+
+state_file="$state_dir/port-$port.start"
+plist="$agent_dir/com.kun.usb-power.port-$port.plist"
+label="com.kun.usb-power.port-$port"
+domain="gui/$(id -u)"
+
+read_state() {
+  local status line
+  status=$("$uhubctl_bin" -l "$hub" -p "$port") || return 1
+  line=$(printf '%s\n' "$status" | grep -E "^[[:space:]]*Port $port:" | head -n 1)
+  case "$line" in
+    *' off'*) echo off ;;
+    *' power'*) echo on ;;
+    *) echo "Cannot determine power state for port $port" >&2; return 1 ;;
+  esac
+}
+
+set_power() {
+  local target=$1 before after
+  before=$(read_state)
+  if [[ $before == "$target" ]]; then
+    echo "Port $port: already $target"
+    return
+  fi
+  "$uhubctl_bin" -l "$hub" -p "$port" -a "$target" >/dev/null
+  after=$(read_state)
+  if [[ $after != "$target" ]]; then
+    echo "Port $port: expected $target, but status is $after" >&2
+    return 1
+  fi
+  echo "Port $port: $before -> $after"
+}
+
+cycle_tick() {
+  local started now elapsed phase target
+  [[ -f $state_file ]] || return 0
+  started=$(cat "$state_file")
+  [[ $started =~ ^[0-9]+$ ]] || { echo "Invalid cycle state: $state_file" >&2; return 1; }
+  now=$(date +%s)
+  elapsed=$((now - started))
+  if ((elapsed < 0)); then
+    target=on
+  else
+    phase=$((elapsed % cycle_seconds))
+    if ((phase < on_seconds)); then target=on; else target=off; fi
+  fi
+  set_power "$target"
+}
+
+if ((cycle_mode)); then
+  case $action in
+    on)
+      if [[ -f $state_file ]]; then
+        echo "Port $port: cycle already enabled"
+        cycle_tick
+        exit 0
+      fi
+      set_power on
+      mkdir -p "$state_dir" "$agent_dir"
+      date +%s > "$state_file"
+      cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>$label</string>
+  <key>ProgramArguments</key><array>
+    <string>$HOME/.local/bin/usb-power</string>
+    <string>cycle</string><string>__tick</string><string>$port</string>
+  </array>
+  <key>EnvironmentVariables</key><dict><key>HOME</key><string>$HOME</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>300</integer>
+</dict></plist>
+EOF
+      if ! launchctl bootstrap "$domain" "$plist"; then
+        mv "$state_file" "$state_file.disabled"
+        echo "Scheduler failed to start; port $port is left on" >&2
+        exit 1
+      fi
+      echo "Port $port: cycle enabled (6h on / 18h off, checks every 5m)"
+      ;;
+    off)
+      if [[ -f $plist ]]; then
+        launchctl bootout "$domain/$label" 2>/dev/null || true
+        mv "$plist" "$plist.disabled"
+      fi
+      if [[ -f $state_file ]]; then
+        mv "$state_file" "$state_file.disabled"
+      fi
+      set_power on
+      echo "Port $port: cycle disabled; power left on"
+      ;;
+    status)
+      if [[ -f $state_file ]]; then
+        echo "Port $port: cycle enabled (6h on / 18h off)"
+      else
+        echo "Port $port: cycle disabled"
+      fi
+      echo "Port $port: current power $(read_state)"
+      ;;
+    __tick) cycle_tick ;;
+  esac
+else
+  case $action in
+    status) echo "Port $port: $(read_state)" ;;
+    on|off)
+      set_power "$action"
+      if [[ -f $state_file ]]; then
+        echo "Port $port: cycle is enabled and may change this state within 5 minutes"
+      fi
+      ;;
+  esac
+fi
