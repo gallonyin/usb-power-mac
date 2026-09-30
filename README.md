@@ -1,6 +1,6 @@
 # USB Power for macOS
 
-A small, local control panel for switching USB-C port power with [uhubctl](https://github.com/mvp/uhubctl). It includes a command-line tool and a browser interface. It was built for a Mac with an Apple USB2 hub at location `2-1` and two ports.
+A small, local control panel for switching USB-C port power with [uhubctl](https://github.com/mvp/uhubctl). It includes a command-line tool and a browser interface.
 
 ![macOS](https://img.shields.io/badge/macOS-local%20only-08795c)
 
@@ -11,6 +11,17 @@ A small, local control panel for switching USB-C port power with [uhubctl](https
 - Python 3.9 or newer for the web interface
 
 Find the hub and port that correspond to your device with `uhubctl`. Switching a USB-C port may switch its USB2 and USB3 companion ports together. Test the selected port with the device connected before relying on a schedule.
+
+## Supported devices
+
+| Device | Status | Details |
+| --- | --- | --- |
+| Mac mini (M4, `Mac16,10`) | Tested | Apple USB2 hub `05ac:800b` at `2-1` and USB3 companion hub `05ac:800c` at `2-2`. The front-left USB-C port is port `2` in this setup. Turning it off with `uhubctl` stopped charging the connected phone. |
+| Android phone identified by USB ID `05c6:9025` (reported as vivo iQOO Neo 855) | Tested as a load | Charging stopped when port `2` was switched off. The phone model name comes from the USB descriptor and has not been independently verified. |
+| Other Macs and USB hubs | Not tested | They may work if `uhubctl` reports per-port power switching (`ppps`), but hub locations and port numbers can differ. Verify the physical port and actual charging behavior before enabling a cycle. |
+| USB hubs without `ppps` | Unsupported | This tool cannot cut power on hubs that do not expose per-port power switching to `uhubctl`. |
+
+The tool controls the Mac's USB port, so the phone brand is usually not the compatibility factor. The default hub location is `2-1`; use `usb-power hub LOCATION` if `uhubctl` shows a different location on your Mac. The USB2 and USB3 companion hubs may be switched together by `uhubctl`.
 
 ## Install
 
