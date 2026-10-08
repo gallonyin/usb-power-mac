@@ -70,7 +70,7 @@ else
   cycle_mode=0
 fi
 [[ $port == 1 || $port == 2 ]] || bad_usage
-[[ $action == on || $action == off || $action == status || $action == __tick ]] || bad_usage
+[[ $action == on || $action == off || $action == status || $action == devices || $action == __tick ]] || bad_usage
 [[ $action != __tick || $cycle_mode == 1 ]] || bad_usage
 
 if command -v uhubctl >/dev/null 2>&1; then
@@ -189,6 +189,7 @@ EOF
   esac
 else
   case $action in
+    devices) "$uhubctl_bin" -l "$hub" ;;
     status) echo "Port $port: $(read_state)" ;;
     on|off)
       set_power "$action"

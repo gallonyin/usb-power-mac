@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import re
 import secrets
 import subprocess
 import threading
@@ -53,7 +54,24 @@ def read_history() -> dict:
     return {"records": records, "error": ""}
 
 
+def parse_devices(output: str) -> dict:
+    devices = {}
+    for line in output.splitlines():
+        match = re.match(r"\s*Port ([12]):\s+(.+)", line)
+        if not match or not re.search(r"\bconnect\b", match[2]):
+            continue
+        descriptor = re.search(r"\[[0-9a-fA-F]{4}:[0-9a-fA-F]{4}(?:\s+([^\]]+))?\]", match[2])
+        name = descriptor[1].strip() if descriptor and descriptor[1] else ""
+        # Do not show a trailing hexadecimal USB serial number in the UI.
+        name = re.sub(r"\s+[0-9a-fA-F]{8,}$", "", name)
+        if name or match[1] not in devices:
+            devices[match[1]] = name or "未知设备"
+    return devices
+
+
 def snapshot() -> dict:
+    devices_ok, device_output = run_cli("devices")
+    devices = parse_devices(device_output) if devices_ok else {}
     ports = {}
     for port in ("1", "2"):
         ok, power = run_cli("status", port)
@@ -61,6 +79,7 @@ def snapshot() -> dict:
         ports[port] = {
             "power": power.rsplit(" ", 1)[-1] if ok else "unknown",
             "cycle": "enabled" if cycle_ok and "cycle enabled" in cycle else "disabled",
+            "device": devices.get(port),
             "error": "" if ok and cycle_ok else power or cycle,
         }
     _, hub = run_cli("hub")

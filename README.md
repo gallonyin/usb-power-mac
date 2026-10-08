@@ -37,6 +37,8 @@ The installer links `usb-power` into `~/.local/bin`. Keep the cloned directory i
 
 ## Use
 
+The control panel displays detected USB device names on their port cards. A connected device without a reported name appears as "未知设备" (unknown device); no device label is shown when nothing is detected. Detection also checks the hub's USB3 companion ports. Charge-only devices and devices on powered-off ports may not be detectable.
+
 ```bash
 usb-power                # help
 usb-power hub            # current hub location; defaults to 2-1

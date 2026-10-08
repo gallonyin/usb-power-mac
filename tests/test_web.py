@@ -16,6 +16,17 @@ spec.loader.exec_module(web)
 
 
 class WebTests(unittest.TestCase):
+    def test_devices_and_companion_ports(self):
+        output = """Port 1: 0100 power
+Port 2: 0503 power highspeed enable connect [05c6:9025 vivo iQOO Neo 855? 7293aad4]
+Port 1: 02a0 power 5gbps Rx.Detect
+Port 2: 00a0 off
+"""
+        self.assertEqual(web.parse_devices(output), {"2": "vivo iQOO Neo 855?"})
+        self.assertEqual(web.parse_devices("Port 1: 0103 power enable connect"), {"1": "未知设备"})
+        self.assertEqual(web.parse_devices("Port 1: 0103 power enable connect [1234:5678]"), {"1": "未知设备"})
+        self.assertEqual(web.parse_devices("Port 1: 0100 power"), {})
+
     def test_history_window_and_malformed_rows(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
@@ -65,6 +76,8 @@ class WebTests(unittest.TestCase):
 
     def test_valid_change_uses_cli_arguments(self):
         def fake_run(*args):
+            if args == ("devices",):
+                return True, "Port 2: 0103 power enable connect [1234:5678 Test phone]"
             if args == ("cycle", "on", "2"):
                 return True, "Port 2: cycle enabled"
             if args[0] == "hub":

@@ -23,6 +23,7 @@
     .badge.off { color: #8a5965; background: #fae9ed; }
     .state { margin: 24px 0 5px; font-size: 29px; font-weight: 800; letter-spacing: -.04em; }
     .hint { color: #74857e; font-size: 13px; margin: 0 0 26px; }
+    .device { color: #277b67; font-size: 13px; line-height: 1.5; margin: -16px 0 20px; overflow-wrap: anywhere; }
     .row { display: flex; gap: 9px; }
     button.action { flex: 1; border: 1px solid #d9e6df; border-radius: 12px; background: #f7faf8; color: #1d5848; padding: 12px 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
     button.action.primary { background: #08795c; color: white; border-color: #08795c; }
@@ -54,14 +55,14 @@
     <div class="grid">
       <section class="card" data-port="1">
         <div class="card-header"><h2>端口 1</h2><span class="badge">读取中</span></div>
-        <div class="state">—</div><p class="hint">手动控制</p>
+        <div class="state">—</div><p class="hint">手动控制</p><p class="device" hidden></p>
         <div class="row"><button class="action primary" data-mode="power" data-action="on">通电</button><button class="action" data-mode="power" data-action="off">断电</button></div>
         <div class="divider"></div><p class="cycle-title">周期充电</p><p class="cycle-detail">通电 6 小时 · 断电 18 小时 · 每天循环</p>
         <div class="row"><button class="action primary" data-mode="cycle" data-action="on">开启周期</button><button class="action" data-mode="cycle" data-action="off">停止周期</button></div>
       </section>
       <section class="card" data-port="2">
         <div class="card-header"><h2>端口 2</h2><span class="badge">读取中</span></div>
-        <div class="state">—</div><p class="hint">手动控制</p>
+        <div class="state">—</div><p class="hint">手动控制</p><p class="device" hidden></p>
         <div class="row"><button class="action primary" data-mode="power" data-action="on">通电</button><button class="action" data-mode="power" data-action="off">断电</button></div>
         <div class="divider"></div><p class="cycle-title">周期充电</p><p class="cycle-detail">通电 6 小时 · 断电 18 小时 · 每天循环</p>
         <div class="row"><button class="action primary" data-mode="cycle" data-action="on">开启周期</button><button class="action" data-mode="cycle" data-action="off">停止周期</button></div>
@@ -119,6 +120,9 @@
         badge.className = `badge ${item.cycle === 'enabled' ? 'on' : 'off'}`;
         card.querySelector('.state').textContent = item.power === 'on' ? '正在通电' : item.power === 'off' ? '已断电' : '状态未知';
         card.querySelector('.hint').textContent = item.error || '手动控制';
+        const device = card.querySelector('.device');
+        device.hidden = !item.device;
+        device.textContent = item.device ? `已连接：${item.device}` : '';
       }
     }
     async function refresh() {

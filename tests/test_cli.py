@@ -50,6 +50,7 @@ fi
         return subprocess.run([str(SCRIPT), *args], env=self.env, text=True, capture_output=True, check=True).stdout
 
     def test_default_port_and_hub(self):
+        self.assertIn("Port 1: 0000 off", self.run_cli("devices"))
         self.assertIn("Port 1: off -> on", self.run_cli("on"))
         self.assertIn("Port 1: already on", self.run_cli("on"))
         history = self.home / "Library/Application Support/usb-power/power-history.tsv"
