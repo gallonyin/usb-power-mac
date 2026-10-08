@@ -25,6 +25,7 @@
     .state { flex-shrink: 0; font-size: 29px; font-weight: 800; letter-spacing: -.04em; white-space: nowrap; }
     .hint { color: #74857e; font-size: 13px; margin: 0 0 26px; }
     .device { min-width: 0; color: #277b67; font-size: 12px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .device.remembered { color: #74857e; }
     .row { display: flex; gap: 9px; }
     button.action { flex: 1; border: 1px solid #d9e6df; border-radius: 12px; background: #f7faf8; color: #1d5848; padding: 12px 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
     button.action.primary { background: #08795c; color: white; border-color: #08795c; }
@@ -122,9 +123,19 @@
         card.querySelector('.state').textContent = item.power === 'on' ? '正在通电' : item.power === 'off' ? '已断电' : '状态未知';
         card.querySelector('.hint').textContent = item.error || '手动控制';
         const device = card.querySelector('.device');
-        device.hidden = !item.device;
-        device.textContent = item.device || '';
-        device.title = item.device || '';
+        const deviceKey = `usb-power-device:${data.hub}:${port}`;
+        let remembered = card.dataset.lastDeviceHub === data.hub ? card.dataset.lastDevice || '' : '';
+        try {
+          if (item.device) localStorage.setItem(deviceKey, item.device);
+          remembered = localStorage.getItem(deviceKey) || remembered;
+        } catch (_) { /* Keep the in-page cache when browser storage is unavailable. */ }
+        const name = item.device || remembered;
+        card.dataset.lastDevice = name;
+        card.dataset.lastDeviceHub = data.hub;
+        device.hidden = !name;
+        device.classList.toggle('remembered', !item.device);
+        device.textContent = name ? `${name}${item.device ? '' : ' · 上次'}` : '';
+        device.title = name ? `${item.device ? '当前检测到' : '上次检测到，当前无法确认连接'}：${name}` : '';
       }
     }
     async function refresh() {
