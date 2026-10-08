@@ -111,6 +111,10 @@ set_power() {
     echo "Port $port: expected $target, but status is $after" >&2
     return 1
   fi
+  local source=${USB_POWER_SOURCE:-manual}
+  if ((cycle_mode)) && [[ $action == __tick ]]; then source=cycle; fi
+  mkdir -p "$state_dir"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%s)" "$port" "$before" "$after" "$source" "$hub" >> "$state_dir/power-history.tsv"
   echo "Port $port: $before -> $after"
 }
 

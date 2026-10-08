@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import threading
+import tempfile
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -15,6 +16,24 @@ spec.loader.exec_module(web)
 
 
 class WebTests(unittest.TestCase):
+    def test_history_window_and_malformed_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            folder = home / "Library/Application Support/usb-power"
+            folder.mkdir(parents=True)
+            now = 1800000000
+            (folder / "power-history.tsv").write_text(
+                f"{now - 31 * 86400}\t1\ton\toff\tcycle\t2-1\n"
+                f"{now - 30 * 86400}\t1\toff\ton\tmanual\t2-1\n"
+                "invalid row\n"
+                f"{now}\t2\ton\toff\tweb\t2-1\n"
+            )
+            with patch.object(web.Path, "home", return_value=home), patch.object(web.time, "time", return_value=now):
+                result = web.read_history()
+            self.assertEqual(len(result["records"]), 2)
+            self.assertEqual(result["records"][0]["source"], "web")
+            self.assertEqual(result["records"][1]["timestamp"], now - 30 * 86400)
+
     @classmethod
     def setUpClass(cls):
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), web.Handler)

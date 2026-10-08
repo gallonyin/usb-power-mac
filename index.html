@@ -32,6 +32,16 @@
     .cycle-detail { color: #74857e; font-size: 13px; line-height: 1.5; margin: 0 0 17px; }
     .notice { margin-top: 22px; border: 1px solid #dce7e1; border-radius: 16px; padding: 16px 20px; color: #5d7068; font-size: 13px; line-height: 1.6; background: #f9fbf9; }
     #message { min-height: 22px; color: #1f7359; font-size: 13px; margin: 16px 0 0; }
+    .history { margin-top: 24px; }
+    .history-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+    select { border: 1px solid #d9e6df; border-radius: 10px; padding: 9px; background: #f7faf8; color: #1d5848; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+    th, td { text-align: left; padding: 14px 10px; border-bottom: 1px solid #e9efec; }
+    th { color: #74857e; font-weight: 600; }
+    .history-footer { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+    .history-footer button { flex: none; padding: 8px 12px; }
+    #history-count, #history-empty { color: #74857e; font-size: 13px; }
     @media (max-width: 650px) { main { padding: 34px 16px; } .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -58,12 +68,49 @@
       </section>
     </div>
     <p id="message" role="status"></p>
+    <section class="card history" aria-label="供电历史记录">
+      <div class="history-header"><h2>供电记录</h2><select id="history-port" aria-label="筛选记录端口"><option value="all">全部端口</option><option value="1">端口 1</option><option value="2">端口 2</option></select></div>
+      <p class="cycle-detail">最近 30 天 · 仅记录确认成功的通电 / 断电变化 · 更新前的历史无法补录</p>
+      <div class="table-scroll"><table><thead><tr><th>时间</th><th>端口</th><th>状态变化</th><th>来源</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+      <p id="history-empty">正在读取记录…</p>
+      <div class="history-footer"><span id="history-count"></span><button class="action" id="history-prev">上一页</button><button class="action" id="history-next">下一页</button></div>
+    </section>
     <div class="notice">停止周期后，端口会保持通电。手动操作不会关闭已开启的周期；下次定时检查可能再次改变端口状态。固定时间策略不读取手机电量，Mac 关机或断电时无法保证手机持续有电。</div>
   </main>
   <script>
     const token = '__CSRF_TOKEN__';
     const message = document.querySelector('#message');
+    let historyRecords = [], historyPage = 0, historyError = '';
+    function renderHistory() {
+      const port = document.querySelector('#history-port').value;
+      const records = historyRecords.filter(item => port === 'all' || item.port === port);
+      const pages = Math.max(1, Math.ceil(records.length / 20));
+      historyPage = Math.min(historyPage, pages - 1);
+      const tbody = document.querySelector('#history-rows');
+      tbody.replaceChildren();
+      for (const item of records.slice(historyPage * 20, (historyPage + 1) * 20)) {
+        const row = document.createElement('tr');
+        const states = {on: '通电', off: '断电'};
+        const sources = {manual: '命令行', web: '网页操作', cycle: '周期充电'};
+        for (const value of [new Date(item.timestamp * 1000).toLocaleString('zh-CN', {hour12: false}), `端口 ${item.port}`, `${states[item.before]} → ${states[item.after]}`, sources[item.source] || '其他']) {
+          const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+        }
+        tbody.append(row);
+      }
+      const empty = document.querySelector('#history-empty');
+      empty.hidden = records.length > 0 && !historyError;
+      empty.textContent = historyError || '最近 30 天暂无记录。下一次实际通电或断电后会自动显示。';
+      document.querySelector('#history-count').textContent = `${records.length} 条记录 · ${historyPage + 1} / ${pages} 页`;
+      document.querySelector('#history-prev').disabled = historyPage === 0;
+      document.querySelector('#history-next').disabled = historyPage + 1 >= pages;
+    }
+    document.querySelector('#history-port').addEventListener('change', () => { historyPage = 0; renderHistory(); });
+    document.querySelector('#history-prev').addEventListener('click', () => { historyPage--; renderHistory(); });
+    document.querySelector('#history-next').addEventListener('click', () => { historyPage++; renderHistory(); });
     function render(data) {
+      historyRecords = data.history?.records || [];
+      historyError = data.history?.error || '';
+      renderHistory();
       document.querySelector('#hub').textContent = `USB hub: ${data.hub}`;
       for (const [port, item] of Object.entries(data.ports)) {
         const card = document.querySelector(`[data-port="${port}"]`);

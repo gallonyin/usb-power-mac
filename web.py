@@ -3,9 +3,11 @@
 
 import argparse
 import json
+import os
 import secrets
 import subprocess
 import threading
+import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -20,11 +22,35 @@ HTML = (Path(__file__).with_name("index.html")).read_text(encoding="utf-8")
 def run_cli(*args: str) -> tuple[bool, str]:
     try:
         result = subprocess.run(
-            [SCRIPT, *args], capture_output=True, text=True, timeout=20, check=False
+            [SCRIPT, *args], capture_output=True, text=True, timeout=20, check=False,
+            env={**os.environ, "USB_POWER_SOURCE": "web"},
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, str(exc)
     return result.returncode == 0, (result.stdout or result.stderr).strip()
+
+
+def read_history() -> dict:
+    path = Path.home() / "Library/Application Support/usb-power/power-history.tsv"
+    records = []
+    cutoff = int(time.time()) - 30 * 86400
+    try:
+        with path.open(encoding="utf-8") as stream:
+            for line in stream:
+                try:
+                    timestamp, port, before, after, source, hub = line.rstrip("\n").split("\t")
+                    timestamp = int(timestamp)
+                    if timestamp < cutoff or port not in ("1", "2") or before not in ("on", "off") or after not in ("on", "off"):
+                        continue
+                    records.append(dict(timestamp=timestamp, port=port, before=before, after=after, source=source, hub=hub))
+                except (ValueError, TypeError):
+                    continue
+    except FileNotFoundError:
+        pass
+    except OSError:
+        return {"records": [], "error": "无法读取历史记录，请检查日志文件权限。"}
+    records.sort(key=lambda row: row["timestamp"], reverse=True)
+    return {"records": records, "error": ""}
 
 
 def snapshot() -> dict:
@@ -38,7 +64,7 @@ def snapshot() -> dict:
             "error": "" if ok and cycle_ok else power or cycle,
         }
     _, hub = run_cli("hub")
-    return {"hub": hub.removeprefix("Hub: "), "ports": ports}
+    return {"hub": hub.removeprefix("Hub: "), "ports": ports, "history": read_history()}
 
 
 class Handler(BaseHTTPRequestHandler):

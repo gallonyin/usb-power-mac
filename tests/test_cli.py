@@ -52,6 +52,10 @@ fi
     def test_default_port_and_hub(self):
         self.assertIn("Port 1: off -> on", self.run_cli("on"))
         self.assertIn("Port 1: already on", self.run_cli("on"))
+        history = self.home / "Library/Application Support/usb-power/power-history.tsv"
+        rows = history.read_text().splitlines()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].split("\t")[1:], ["1", "off", "on", "manual", "2-1"])
         self.assertIn("Hub: 2-1", self.run_cli("hub"))
         self.assertIn("Hub: 3-2", self.run_cli("hub", "3-2"))
 
@@ -65,6 +69,8 @@ fi
         self.assertIn("cycle disabled", self.run_cli("cycle", "off", "2"))
         self.assertEqual((self.home / "port-state").read_text(), "on")
         self.assertFalse((self.home / "Library/LaunchAgents/com.kun.usb-power.port-2.plist").exists())
+        rows = (self.home / "Library/Application Support/usb-power/power-history.tsv").read_text().splitlines()
+        self.assertEqual(rows[1].split("\t")[1:5], ["2", "on", "off", "cycle"])
 
 
 if __name__ == "__main__":

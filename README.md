@@ -60,6 +60,8 @@ This is a timer, not battery-aware charging. It cannot guarantee that a phone st
 
 ## Privacy and security
 
+The control panel shows confirmed power transitions from the last 30 days, with time, port, before/after state, and source (CLI, web, or scheduled cycle). Records are saved locally in `~/Library/Application Support/usb-power/power-history.tsv` and retained without automatic deletion. History begins after installing this version; earlier activity cannot be reconstructed. Repeated checks that find the port already on/off do not create duplicate entries. Changes made directly with `uhubctl`, outside this tool, are not recorded.
+
 The web interface has no cloud service, binds to loopback only, and requires a session token for changes. It uses Python's standard library and invokes the local CLI. Do not expose port 8765 through a proxy or tunnel.
 
 ## Development
