@@ -138,16 +138,37 @@
         device.title = name ? `${item.device ? '当前检测到' : '上次检测到，当前无法确认连接'}：${name}` : '';
       }
     }
+    let refreshTimer, refreshController, refreshing = false, actionPending = false;
+    function scheduleRefresh(delay = 3000) {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refresh, delay);
+    }
     async function refresh() {
+      if (refreshing || actionPending) return;
+      clearTimeout(refreshTimer);
+      refreshing = true;
+      const controller = new AbortController();
+      refreshController = controller;
+      const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch('/api/status', {cache: 'no-store'});
+        const response = await fetch('/api/status', {cache: 'no-store', signal: controller.signal});
         if (!response.ok) throw new Error('无法读取状态');
-        render(await response.json());
-      } catch (error) { message.textContent = error.message; }
+        const data = await response.json();
+        if (!controller.signal.aborted && !actionPending) render(data);
+      } catch (error) {
+        if (!actionPending) message.textContent = controller.signal.aborted ? '读取状态超时，正在自动重试…' : '无法连接本地服务，正在自动重试…';
+      } finally {
+        clearTimeout(timeout);
+        refreshing = false;
+        if (!actionPending && !document.hidden) scheduleRefresh();
+      }
     }
     document.querySelector('#refresh').addEventListener('click', refresh);
     document.querySelectorAll('button[data-action]').forEach(button => button.addEventListener('click', async () => {
       const port = button.closest('[data-port]').dataset.port;
+      actionPending = true;
+      clearTimeout(refreshTimer);
+      refreshController?.abort();
       document.querySelectorAll('button[data-action]').forEach(item => item.disabled = true);
       message.textContent = '正在执行…';
       try {
@@ -159,10 +180,18 @@
         message.textContent = result.message || result.error;
         if (result.status) render(result.status);
       } catch (error) { message.textContent = error.message; }
-      finally { document.querySelectorAll('button[data-action]').forEach(item => item.disabled = false); }
+      finally {
+        actionPending = false;
+        document.querySelectorAll('button[data-action]').forEach(item => item.disabled = false);
+        scheduleRefresh(1000);
+      }
     }));
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) clearTimeout(refreshTimer);
+      else refresh();
+    });
+    window.addEventListener('focus', refresh);
     refresh();
-    setInterval(refresh, 30000);
   </script>
 </body>
 </html>

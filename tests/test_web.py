@@ -16,6 +16,19 @@ spec.loader.exec_module(web)
 
 
 class WebTests(unittest.TestCase):
+    def test_snapshot_uses_one_usb_query(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            folder = home / "Library/Application Support/usb-power"
+            folder.mkdir(parents=True)
+            (folder / "port-2.start").write_text("1800000000")
+            with patch.object(web.Path, "home", return_value=home), patch.object(web, "run_cli", return_value=(True, "Port 1: 0100 power\nPort 2: 0000 off\nPort 2: 00a0 off")) as run:
+                result = web.snapshot()
+            run.assert_called_once_with("devices")
+            self.assertEqual(result["ports"]["1"]["power"], "on")
+            self.assertEqual(result["ports"]["2"]["power"], "off")
+            self.assertEqual(result["ports"]["2"]["cycle"], "enabled")
+
     def test_devices_and_companion_ports(self):
         output = """Port 1: 0100 power
 Port 2: 0503 power highspeed enable connect [05c6:9025 vivo iQOO Neo 855? 7293aad4]

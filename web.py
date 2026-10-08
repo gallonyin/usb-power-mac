@@ -72,18 +72,25 @@ def parse_devices(output: str) -> dict:
 def snapshot() -> dict:
     devices_ok, device_output = run_cli("devices")
     devices = parse_devices(device_output) if devices_ok else {}
+    power_states = {}
+    for line in device_output.splitlines() if devices_ok else []:
+        match = re.match(r"\s*Port ([12]):\s+(.+)", line)
+        if match and match[1] not in power_states:
+            power_states[match[1]] = "off" if re.search(r"\boff\b", match[2]) else "on" if re.search(r"\bpower\b", match[2]) else "unknown"
+    state_dir = Path.home() / "Library/Application Support/usb-power"
     ports = {}
     for port in ("1", "2"):
-        ok, power = run_cli("status", port)
-        cycle_ok, cycle = run_cli("cycle", "status", port)
         ports[port] = {
-            "power": power.rsplit(" ", 1)[-1] if ok else "unknown",
-            "cycle": "enabled" if cycle_ok and "cycle enabled" in cycle else "disabled",
+            "power": power_states.get(port, "unknown"),
+            "cycle": "enabled" if (state_dir / f"port-{port}.start").is_file() else "disabled",
             "device": devices.get(port),
-            "error": "" if ok and cycle_ok else power or cycle,
+            "error": "" if power_states.get(port) in ("on", "off") else "无法读取端口状态",
         }
-    _, hub = run_cli("hub")
-    return {"hub": hub.removeprefix("Hub: "), "ports": ports, "history": read_history()}
+    try:
+        hub = (state_dir / "hub").read_text().strip()
+    except FileNotFoundError:
+        hub = "2-1"
+    return {"hub": hub, "ports": ports, "history": read_history()}
 
 
 class Handler(BaseHTTPRequestHandler):

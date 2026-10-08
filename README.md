@@ -56,6 +56,8 @@ Port defaults to `1`. Double-click `open-usb-power.command` to open the control 
 
 ## Fixed schedule
 
+The page requests status immediately on opening, then every 3 seconds while visible. Returning to the tab refreshes immediately. Button actions refresh immediately and check again after 1 second for USB re-enumeration. Background polling pauses when the tab is hidden; requests do not overlap. Each status check uses one `uhubctl` query for both ports.
+
 Each port has its own optional schedule: **6 hours on, 18 hours off**, repeated every 24 hours from the time the schedule is enabled. A LaunchAgent checks every 5 minutes. After login or wake, it applies the phase calculated from the original start time. Stopping the schedule turns the port on.
 
 This is a timer, not battery-aware charging. It cannot guarantee that a phone stays powered: workload, charging speed, battery age, Mac sleep, shutdown, power loss, and failed USB switching can all change the outcome. Observe the phone's charge after an 18-hour off period before leaving it unattended. Where available, a built-in battery charge limit is more precise for battery care.
