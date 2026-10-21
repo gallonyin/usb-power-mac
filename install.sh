@@ -22,4 +22,5 @@ if [[ :$PATH: != *":$bin_dir:"* ]]; then
 fi
 
 echo "Installed $target"
+python3 "$project_dir/service.py" install
 echo "Run: usb-power web"

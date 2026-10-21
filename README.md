@@ -33,7 +33,7 @@ cd usb-power-mac
 ./install.sh
 ```
 
-The installer links `usb-power` into `~/.local/bin`. Keep the cloned directory in place because the command and launchd jobs point to it. The installer backs up an existing command before replacing it.
+The installer deploys runtime files into `~/Library/Application Support/usb-power/app`, links `usb-power` into `~/.local/bin`, and starts a native macOS LaunchAgent for the web service. It starts after login and restarts automatically if the process exits. Runtime files are kept outside Documents to avoid background access restrictions. The installer backs up an existing command before replacing it. To deploy source updates, run `./install.sh` again; charging settings and history are preserved.
 
 ## Use
 
@@ -52,7 +52,16 @@ usb-power cycle off 2    # stop schedule, leave the port powered on
 usb-power web            # open the local control panel
 ```
 
-Port defaults to `1`. Double-click `open-usb-power.command` to open the control panel without typing a command. The page binds only to `127.0.0.1:8765`; close the terminal running it to stop the page. The schedule runs separately through a macOS LaunchAgent and continues when the page is closed.
+Port defaults to `1`. Run `usb-power web` to open the background service in your browser. The page binds only to `127.0.0.1:8765`; closing the browser or terminal does not stop the installed service. Charging schedules run as separate LaunchAgents and continue when the page is closed.
+
+```bash
+usb-power service status
+usb-power service restart
+usb-power service stop     # stops the web service; charging cycles continue
+usb-power service start
+```
+
+Service logs are in `~/Library/Application Support/usb-power/logs`. LaunchAgents run after user login, not before login or while the Mac is shut down. Docker Desktop does not provide direct USB passthrough, so this service runs natively on macOS.
 
 ## Fixed schedule
 

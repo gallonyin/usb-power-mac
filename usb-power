@@ -15,6 +15,7 @@ Usage: usb-power {on|off|status} [1|2]
        usb-power cycle {on|off|status} [1|2]
        usb-power hub [HUB]
        usb-power web
+       usb-power service {install|start|stop|restart|status}
 
 Port defaults to 1. Cycle: charge 6 hours, power off 18 hours, repeat.
 Cycle starts with charging and resumes after login/restart.
@@ -39,7 +40,16 @@ if [[ $# -eq 0 || ${1:-} == -h || ${1:-} == --help ]]; then
   exit 0
 fi
 
+if [[ $1 == service ]]; then
+  source_path=$(readlink "$0" || printf '%s' "$0")
+  source_dir=$(cd "$(dirname "$source_path")" && pwd)
+  exec python3 "$source_dir/service.py" "${2:-status}"
+fi
+
 if [[ $1 == web && $# -eq 1 ]]; then
+  if /bin/launchctl print "gui/$(id -u)/com.kun.usb-power.web" >/dev/null 2>&1; then
+    exec open http://127.0.0.1:8765/
+  fi
   source_path=$(readlink "$0" || printf '%s' "$0")
   source_dir=$(cd "$(dirname "$source_path")" && pwd)
   exec python3 "$source_dir/web.py" --open
@@ -151,6 +161,7 @@ if ((cycle_mode)); then
 <plist version="1.0"><dict>
   <key>Label</key><string>$label</string>
   <key>ProgramArguments</key><array>
+    <string>/bin/bash</string>
     <string>$HOME/.local/bin/usb-power</string>
     <string>cycle</string><string>__tick</string><string>$port</string>
   </array>
